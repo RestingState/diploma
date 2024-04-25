@@ -33,6 +33,7 @@ class ModelNames:
 
 data_path = "app/data/jobs-main-data.csv"
 hub_name = "DenysZakharkevych"
+max_length = 512
 
 
 class ModelColumns:
@@ -169,13 +170,11 @@ def prepare_test_dataset():
 
     X_test = list(X_test["title"] + "\n" + X_test["description"])
 
-    X_test = [x[:512] for x in X_test]
+    X_test = [tokenizer(x, truncation=True, max_length=max_length - 2) for x in X_test]
+
+    X_test = [tokenizer.decode(x["input_ids"]) for x in X_test]
 
     return X_test[:20], y_test[:20]
-
-
-def preprocess_function(examples):
-    return tokenizer(examples["text"], truncation=True, max_length=512)
 
 
 if __name__ == "__main__":
