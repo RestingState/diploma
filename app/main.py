@@ -3,6 +3,7 @@ from app.models.ml_model import Model as MlModel
 import matplotlib.pyplot as plt
 import pandas as pd
 import time
+import argparse
 
 from sklearn.metrics import (
     ConfusionMatrixDisplay,
@@ -16,8 +17,6 @@ from sklearn.metrics import (
 )
 
 from app.utils.constants import data_path
-
-num_samples = 10
 
 
 class Model:
@@ -35,8 +34,18 @@ class Model:
 
 
 def main():
-    X_test = pd.read_csv(f"{data_path}/X_test.csv").iloc[:num_samples]
-    y_test = pd.read_csv(f"{data_path}/y_test.csv").iloc[:num_samples]
+    parser = argparse.ArgumentParser(description="main")
+
+    parser.add_argument("-n", "--number-of-rows", type=int)
+
+    args = parser.parse_args()
+
+    X_test = pd.read_csv(f"{data_path}/X_test.csv")
+    y_test = pd.read_csv(f"{data_path}/y_test.csv")
+
+    if args.number_of_rows is not None:
+        X_test = X_test.iloc[: args.number_of_rows]
+        y_test = y_test.iloc[: args.number_of_rows]
 
     print(f"Number of rows used to evaluate model: {len(X_test)}")
 
