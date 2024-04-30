@@ -5,12 +5,8 @@ import numpy as np
 
 import pandas as pd
 
-from sklearn.model_selection import train_test_split
-
-
 from transformers import (
     AutoTokenizer,
-    AutoModelForSequenceClassification,
 )
 import evaluate
 import time
@@ -36,8 +32,6 @@ class ModelNames:
 
 hub_name = "DenysZakharkevych"
 max_length = 512
-num_samples = 20
-
 
 id2label = {0: "NEGATIVE", 1: "POSITIVE"}
 label2id = {"NEGATIVE": 0, "POSITIVE": 1}
@@ -73,6 +67,7 @@ def main():
 
     # evaluate subparser
     parser_evaluate = subparsers.add_parser("evaluate", help="evaluate help")
+    parser_evaluate.add_argument("-n", "--number-of-rows", type=int)
     parser_evaluate.add_argument("--with-plots", action="store_true")
 
     parser.add_argument(
@@ -88,6 +83,12 @@ def main():
 
 def evaluate(args):
     X_test, y_test = prepare_test_dataset()
+
+    if args.number_of_rows is not None:
+        X_test = X_test[: args.number_of_rows]
+        y_test = y_test[: args.number_of_rows]
+
+    print(f"Number of rows used to evaluate model: {len(X_test)}")
 
     model_name = args.model_name
 
@@ -105,8 +106,6 @@ def evaluate(args):
     print(f"F1 score: {f1_score(y_test, predictions)}")
     print(f"MCC score: {matthews_corrcoef(y_test, predictions)}")
     print(f"Cohen's kappa score: {cohen_kappa_score(y_test, predictions)}")
-
-    print(f"Number of rows used to evaluate model: {len(X_test)}")
 
     elapsed_time = et - st
     print(f"Execution time: {elapsed_time} seconds")
@@ -128,7 +127,7 @@ def prepare_test_dataset():
 
     X_test = [tokenizer.decode(x["input_ids"]) for x in X_test]
 
-    return X_test[:num_samples], y_test[:num_samples]
+    return X_test, y_test
 
 
 if __name__ == "__main__":

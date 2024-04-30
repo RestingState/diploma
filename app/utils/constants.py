@@ -2,6 +2,8 @@ data_path = "app/data"
 
 
 class ModelColumns:
+    title = "title"
+    description = "description"
     budget = "budget"
     hourlyRangeMin = "hourlyRangeMin"
     isHourlyPayment = "isHourlyPayment"

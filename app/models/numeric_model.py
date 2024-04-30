@@ -25,6 +25,7 @@ from joblib import dump, load
 import time
 from xgboost import XGBClassifier
 from app.utils.constants import data_path, ModelColumns
+from scipy.stats import uniform
 
 
 class ModelNames:
@@ -74,15 +75,25 @@ def train(args):
     X_train = pd.read_csv(f"{data_path}/X_train.csv")
     y_train = pd.read_csv(f"{data_path}/y_train.csv")
 
+    X_train = X_train.drop(columns=[ModelColumns.title, ModelColumns.description])
+    y_train = y_train[ModelColumns.target].to_numpy()
+
     if args.number_of_rows is not None:
         X_train = X_train.head(args.number_of_rows)
         y_train = y_train.head(args.number_of_rows)
+
+    print(f"Number of rows used to train model: {len(X_train)}")
 
     preprocessing_pipeline = get_preprocessing_pipeline()
 
     model_name = args.model_name
     if model_name == ModelNames.svc:
         model = SVC(random_state=42, C=100, gamma=0.001, kernel="rbf")
+        # model = SVC(random_state=42)
+        # distributions = {
+        #     "svc__C": uniform(0.1, 100),
+        #     "svc__kernel": ["linear", "rbf", "poly"],
+        # }
     elif model_name == ModelNames.rfc:
         model = RandomForestClassifier()
     elif model_name == ModelNames.knn:
@@ -92,15 +103,17 @@ def train(args):
 
     pipeline = make_pipeline(preprocessing_pipeline, model)
 
+    # clf = RandomizedSearchCV(pipeline, distributions, random_state=42, verbose=2)
+
     st = time.time()
+    # clf.fit(X_train, y_train)
     pipeline.fit(X_train, y_train)
     et = time.time()
-
-    print(f"Number of rows used to train model: {len(X_train)}")
 
     elapsed_time = et - st
     print(f"Execution time: {elapsed_time} seconds")
 
+    # save_model(clf.best_estimator_, f"{model_name}_pipeline.joblib")
     save_model(pipeline, f"{model_name}_pipeline.joblib")
 
     print(f"{model_name} model was successfully trained")
@@ -117,9 +130,9 @@ def evaluate(args):
     et = time.time()
 
     print(f"Accuracy score: {accuracy_score(y_test, predictions)}")
-    print(f"Precision score: {precision_score(y_test, predictions, pos_label=0)}")
-    print(f"Recall score: {recall_score(y_test, predictions, pos_label=0)}")
-    print(f"F1 score: {f1_score(y_test, predictions, pos_label=0)}")
+    print(f"Precision score: {precision_score(y_test, predictions)}")
+    print(f"Recall score: {recall_score(y_test, predictions)}")
+    print(f"F1 score: {f1_score(y_test, predictions)}")
     print(f"MCC score: {matthews_corrcoef(y_test, predictions)}")
     print(f"Cohen's kappa score: {cohen_kappa_score(y_test, predictions)}")
 
