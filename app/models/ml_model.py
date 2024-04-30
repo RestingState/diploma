@@ -1,6 +1,7 @@
 from transformers import pipeline
 import argparse
 import matplotlib.pyplot as plt
+import numpy as np
 
 import pandas as pd
 
@@ -25,32 +26,17 @@ from sklearn.metrics import (
     cohen_kappa_score,
 )
 
+from app.utils.constants import data_path
+
 
 class ModelNames:
     distilbertBaseUncased = "distilbert-base-uncased"
     bertBaseUncased = "bert-base-uncased"
 
 
-data_path = "app/data/jobs-main-data.csv"
 hub_name = "DenysZakharkevych"
 max_length = 512
-
-
-class ModelColumns:
-    budget = "budget"
-    hourlyRangeMin = "hourlyRangeMin"
-    isHourlyPayment = "isHourlyPayment"
-    country = "country"
-    category = "category"
-    workload = "workload"
-    duration = "duration"
-    clientTotalCharge = "clientTotalCharge"
-    clientTotalJobsPosted = "clientTotalJobsPosted"
-    clientFeedbackScore = "clientFeedbackScore"
-    clientPastHires = "clientPastHires"
-    isPaymentMethodVerified = "isPaymentMethodVerified"
-    skills = "skills"
-    target = "target"
+num_samples = 20
 
 
 id2label = {0: "NEGATIVE", 1: "POSITIVE"}
@@ -58,6 +44,26 @@ label2id = {"NEGATIVE": 0, "POSITIVE": 1}
 
 tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
 accuracy = evaluate.load("accuracy")
+
+
+class Model:
+    def __init__(self, model_name=ModelNames.distilbertBaseUncased):
+        self.classifier = pipeline(
+            "sentiment-analysis", model=f"{hub_name}/{model_name}"
+        )
+
+    def predict(self, jobs):
+        jobs = list(jobs["title"] + "\n" + jobs["description"])
+
+        jobs = [tokenizer(x, truncation=True, max_length=max_length - 2) for x in jobs]
+
+        jobs = [tokenizer.decode(x["input_ids"]) for x in jobs]
+
+        predictions = self.classifier(jobs)
+
+        predictions = [label2id[x["label"]] for x in predictions]
+
+        return np.array(predictions)
 
 
 def main():
@@ -85,17 +91,13 @@ def evaluate(args):
 
     model_name = args.model_name
 
-    model = AutoModelForSequenceClassification.from_pretrained(
-        f"{hub_name}/{model_name}"
-    )
-
     classifier = pipeline("sentiment-analysis", model=f"{hub_name}/{model_name}")
 
     st = time.time()
     predictions = classifier(X_test)
     et = time.time()
 
-    predictions = [model.config.label2id[x["label"]] for x in predictions]
+    predictions = [label2id[x["label"]] for x in predictions]
 
     print(f"Accuracy score: {accuracy_score(y_test, predictions)}")
     print(f"Precision score: {precision_score(y_test, predictions)}")
@@ -117,56 +119,8 @@ def evaluate(args):
 
 
 def prepare_test_dataset():
-    df = pd.read_csv(data_path)
-
-    df = df[df["status"].isin(["prelead", "in-progress"]) == False]
-
-    def transform_status_into_target(row):
-        if row["status"] == "trashed":
-            return 0
-        else:
-            return 1
-
-    df[ModelColumns.target] = df.apply(transform_status_into_target, axis=1)
-    df = df.drop(
-        columns=[
-            "id",
-            "uid",
-            "score",
-            "createdAt",
-            "status",
-            "postedAt",
-            "query",
-        ]
-    )
-
-    df.dropna(subset=[ModelColumns.country, ModelColumns.duration], inplace=True)
-
-    # reassign jobs which do not have verified method payment, but were taken
-    df.loc[
-        (
-            (df[ModelColumns.isPaymentMethodVerified] == 0)
-            & (df[ModelColumns.target] == 1)
-        ),
-        ModelColumns.target,
-    ] = 0
-
-    # reassign project jobs which have budget less than 5000, but were taken
-    df.loc[
-        (
-            (df[ModelColumns.target] == 1)
-            & (df[ModelColumns.budget] < 5000)
-            & (df[ModelColumns.isHourlyPayment] == 0)
-        ),
-        ModelColumns.target,
-    ] = 0
-
-    X = df.drop(ModelColumns.target, axis=1).copy()
-    X = X[["title", "description"]]
-
-    y = df[ModelColumns.target].copy()
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
+    X_test = pd.read_csv(f"{data_path}/X_test.csv")
+    y_test = pd.read_csv(f"{data_path}/y_test.csv")
 
     X_test = list(X_test["title"] + "\n" + X_test["description"])
 
@@ -174,7 +128,7 @@ def prepare_test_dataset():
 
     X_test = [tokenizer.decode(x["input_ids"]) for x in X_test]
 
-    return X_test[:20], y_test[:20]
+    return X_test[:num_samples], y_test[:num_samples]
 
 
 if __name__ == "__main__":

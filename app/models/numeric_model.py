@@ -2,12 +2,11 @@ import argparse
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.utils import shuffle
 from sklearn.metrics import (
     ConfusionMatrixDisplay,
     classification_report,
@@ -22,10 +21,10 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.impute import SimpleImputer
-from imblearn.under_sampling import RandomUnderSampler
 from joblib import dump, load
 import time
 from xgboost import XGBClassifier
+from app.utils.constants import data_path, ModelColumns
 
 
 class ModelNames:
@@ -35,26 +34,14 @@ class ModelNames:
     xgb = "xgb"
 
 
-class ModelColumns:
-    budget = "budget"
-    hourlyRangeMin = "hourlyRangeMin"
-    isHourlyPayment = "isHourlyPayment"
-    country = "country"
-    category = "category"
-    workload = "workload"
-    duration = "duration"
-    clientTotalCharge = "clientTotalCharge"
-    clientTotalJobsPosted = "clientTotalJobsPosted"
-    clientFeedbackScore = "clientFeedbackScore"
-    clientPastHires = "clientPastHires"
-    isPaymentMethodVerified = "isPaymentMethodVerified"
-    skills = "skills"
-    target = "target"
-
-
 class Model:
     def __init__(self, model_name=ModelNames.svc):
         self.pipeline = load_model(f"{model_name}_pipeline.joblib")
+
+    def predict(self, jobs):
+        predictions = self.pipeline.predict(jobs)
+
+        return predictions
 
 
 def main():
@@ -84,7 +71,8 @@ def main():
 
 
 def train(args):
-    X_train, X_test, y_train, y_test = prepare_dataset()
+    X_train = pd.read_csv(f"{data_path}/X_train.csv")
+    y_train = pd.read_csv(f"{data_path}/y_train.csv")
 
     if args.number_of_rows is not None:
         X_train = X_train.head(args.number_of_rows)
@@ -119,7 +107,8 @@ def train(args):
 
 
 def evaluate(args):
-    X_train, X_test, y_train, y_test = prepare_dataset()
+    X_test = pd.read_csv(f"{data_path}/X_test.csv")
+    y_test = pd.read_csv(f"{data_path}/y_test.csv")
 
     pipeline = load_model(f"{args.model_name}_pipeline.joblib")
 
@@ -144,68 +133,6 @@ def evaluate(args):
     if args.with_plots:
         ConfusionMatrixDisplay.from_estimator(pipeline, X_test, y_test)
         plt.show()
-
-
-def prepare_dataset():
-    df = pd.read_csv("app/data/jobs-main-data.csv")
-
-    df = df[df["status"].isin(["prelead", "in-progress"]) == False]
-
-    def transform_status_into_target(row):
-        if row["status"] == "trashed":
-            return 0
-        else:
-            return 1
-
-    df[ModelColumns.target] = df.apply(transform_status_into_target, axis=1)
-    df = df.drop(
-        columns=[
-            "id",
-            "uid",
-            "score",
-            "createdAt",
-            "status",
-            "title",
-            "description",
-            "postedAt",
-            "query",
-        ]
-    )
-
-    df.dropna(subset=[ModelColumns.country, ModelColumns.duration], inplace=True)
-
-    # reassign jobs which do not have verified method payment, but were taken
-    df.loc[
-        (
-            (df[ModelColumns.isPaymentMethodVerified] == 0)
-            & (df[ModelColumns.target] == 1)
-        ),
-        ModelColumns.target,
-    ] = 0
-
-    # reassign project jobs which have budget less than 5000, but were taken
-    df.loc[
-        (
-            (df[ModelColumns.target] == 1)
-            & (df[ModelColumns.budget] < 5000)
-            & (df[ModelColumns.isHourlyPayment] == 0)
-        ),
-        ModelColumns.target,
-    ] = 0
-
-    X = df.drop(ModelColumns.target, axis=1).copy()
-    y = df[ModelColumns.target].copy()
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
-
-    rus = RandomUnderSampler(random_state=42, replacement=True)
-    X_train_undersampled, y_train_undersampled = rus.fit_resample(X_train, y_train)
-
-    X_train, y_train = shuffle(
-        X_train_undersampled, y_train_undersampled, random_state=42
-    )
-
-    return X_train, X_test, y_train, y_test
 
 
 def get_preprocessing_pipeline():
