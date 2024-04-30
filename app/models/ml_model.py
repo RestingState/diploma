@@ -26,8 +26,8 @@ from app.utils.constants import data_path
 
 
 class ModelNames:
-    distilbertBaseUncased = "distilbert-base-uncased"
-    bertBaseUncased = "bert-base-uncased"
+    distilbert = "distilbert-base-uncased"
+    albert = "albert-base-v2"
 
 
 hub_name = "DenysZakharkevych"
@@ -36,22 +36,24 @@ max_length = 512
 id2label = {0: "NEGATIVE", 1: "POSITIVE"}
 label2id = {"NEGATIVE": 0, "POSITIVE": 1}
 
-tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
 accuracy = evaluate.load("accuracy")
 
 
 class Model:
-    def __init__(self, model_name=ModelNames.distilbertBaseUncased):
+    def __init__(self, model_name=ModelNames.distilbert):
         self.classifier = pipeline(
             "sentiment-analysis", model=f"{hub_name}/{model_name}"
         )
+        self.tokenizer = AutoTokenizer.from_pretrained(f"{hub_name}/{model_name}")
 
     def predict(self, jobs):
         jobs = list(jobs["title"] + "\n" + jobs["description"])
 
-        jobs = [tokenizer(x, truncation=True, max_length=max_length - 2) for x in jobs]
+        jobs = [
+            self.tokenizer(x, truncation=True, max_length=max_length - 2) for x in jobs
+        ]
 
-        jobs = [tokenizer.decode(x["input_ids"]) for x in jobs]
+        jobs = [self.tokenizer.decode(x["input_ids"]) for x in jobs]
 
         predictions = self.classifier(jobs)
 
@@ -72,7 +74,7 @@ def main():
 
     parser.add_argument(
         "model_name",
-        choices=[ModelNames.distilbertBaseUncased, ModelNames.bertBaseUncased],
+        choices=[ModelNames.distilbert, ModelNames.albert],
     )
 
     args = parser.parse_args()
