@@ -123,10 +123,10 @@ def evaluate(args):
     X_test = pd.read_csv(f"{data_path}/X_test.csv")
     y_test = pd.read_csv(f"{data_path}/y_test.csv")
 
-    pipeline = load_model(f"{args.model_name}_pipeline.joblib")
+    model = Model(model_name=args.model_name)
 
     st = time.time()
-    predictions = pipeline.predict(X_test)
+    predictions = model.predict(X_test)
     et = time.time()
 
     print(f"Accuracy score: {accuracy_score(y_test, predictions)}")
@@ -144,7 +144,7 @@ def evaluate(args):
     print(classification_report(y_test, predictions))
 
     if args.with_plots:
-        ConfusionMatrixDisplay.from_estimator(pipeline, X_test, y_test)
+        ConfusionMatrixDisplay.from_predictions(y_test, predictions)
         plt.show()
 
 

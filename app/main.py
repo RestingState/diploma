@@ -17,7 +17,7 @@ from sklearn.metrics import (
 
 from app.utils.constants import data_path
 
-num_samples = 1000
+num_samples = 10
 
 
 class Model:
@@ -38,6 +38,8 @@ def main():
     X_test = pd.read_csv(f"{data_path}/X_test.csv").iloc[:num_samples]
     y_test = pd.read_csv(f"{data_path}/y_test.csv").iloc[:num_samples]
 
+    print(f"Number of rows used to evaluate model: {len(X_test)}")
+
     model = Model()
 
     st = time.time()
@@ -50,8 +52,6 @@ def main():
     print(f"F1 score: {f1_score(y_test, predictions)}")
     print(f"MCC score: {matthews_corrcoef(y_test, predictions)}")
     print(f"Cohen's kappa score: {cohen_kappa_score(y_test, predictions)}")
-
-    print(f"Number of rows used to evaluate model: {len(X_test)}")
 
     elapsed_time = et - st
     print(f"Execution time: {elapsed_time} seconds")

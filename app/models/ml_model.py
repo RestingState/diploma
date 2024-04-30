@@ -82,7 +82,8 @@ def main():
 
 
 def evaluate(args):
-    X_test, y_test = prepare_test_dataset()
+    X_test = pd.read_csv(f"{data_path}/X_test.csv")
+    y_test = pd.read_csv(f"{data_path}/y_test.csv")
 
     if args.number_of_rows is not None:
         X_test = X_test[: args.number_of_rows]
@@ -90,15 +91,11 @@ def evaluate(args):
 
     print(f"Number of rows used to evaluate model: {len(X_test)}")
 
-    model_name = args.model_name
-
-    classifier = pipeline("sentiment-analysis", model=f"{hub_name}/{model_name}")
+    model = Model(model_name=args.model_name)
 
     st = time.time()
-    predictions = classifier(X_test)
+    predictions = model.predict(X_test)
     et = time.time()
-
-    predictions = [label2id[x["label"]] for x in predictions]
 
     print(f"Accuracy score: {accuracy_score(y_test, predictions)}")
     print(f"Precision score: {precision_score(y_test, predictions)}")
@@ -115,19 +112,6 @@ def evaluate(args):
     if args.with_plots:
         ConfusionMatrixDisplay.from_predictions(y_test, predictions)
         plt.show()
-
-
-def prepare_test_dataset():
-    X_test = pd.read_csv(f"{data_path}/X_test.csv")
-    y_test = pd.read_csv(f"{data_path}/y_test.csv")
-
-    X_test = list(X_test["title"] + "\n" + X_test["description"])
-
-    X_test = [tokenizer(x, truncation=True, max_length=max_length - 2) for x in X_test]
-
-    X_test = [tokenizer.decode(x["input_ids"]) for x in X_test]
-
-    return X_test, y_test
 
 
 if __name__ == "__main__":
