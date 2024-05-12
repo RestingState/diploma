@@ -52,10 +52,10 @@ class ModelNames:
     svc = "svc"
     rfc = "rfc"
     knn = "knn"
-    xgb = "xgb"
+    xgbclassifier = "xgbclassifier"
 
 
-model_names = [ModelNames.svc, ModelNames.rfc, ModelNames.knn, ModelNames.xgb]
+model_names = [ModelNames.svc, ModelNames.rfc, ModelNames.knn, ModelNames.xgbclassifier]
 
 
 class Model:
@@ -133,8 +133,14 @@ def train(args):
         model = RandomForestClassifier()
     elif model_name == ModelNames.knn:
         model = KNeighborsClassifier()
-    elif model_name == ModelNames.xgb:
-        model = XGBClassifier(objective="binary:logistic")
+    elif model_name == ModelNames.xgbclassifier:
+        model = XGBClassifier(
+            objective="binary:logistic",
+        )
+        distributions = {
+            "xgbclassifier__max_depth": [4, 5, 6],
+            "xgbclassifier__min_child_weight": [4, 5, 6],
+        }
 
     pipeline = make_pipeline(preprocessing_pipeline, model)
 
@@ -146,8 +152,8 @@ def train(args):
             distributions,
             random_state=42,
             verbose=2,
-            cv=3,
-            n_iter=5,
+            cv=5,
+            n_iter=10,
             n_jobs=2,
             scoring="f1",
         )
