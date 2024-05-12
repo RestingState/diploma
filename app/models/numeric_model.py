@@ -9,6 +9,7 @@ from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import (
     ConfusionMatrixDisplay,
+    RocCurveDisplay,
     classification_report,
     accuracy_score,
     precision_score,
@@ -16,6 +17,7 @@ from sklearn.metrics import (
     f1_score,
     matthews_corrcoef,
     cohen_kappa_score,
+    roc_auc_score,
 )
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import CountVectorizer
@@ -25,7 +27,25 @@ from joblib import dump, load
 import time
 from xgboost import XGBClassifier
 from app.utils.constants import data_path, ModelColumns
-from scipy.stats import uniform
+from scipy.stats import uniform, randint
+from tqdm import tqdm
+
+# font = {"weight": "bold", "size": 20}
+# plt.rc("font", **font)
+
+# SMALL_SIZE = 14
+# MEDIUM_SIZE = 16
+# BIGGER_SIZE = 18
+
+# plt.rc("font", size=SMALL_SIZE)  # controls default text sizes
+# plt.rc("axes", titlesize=SMALL_SIZE)  # fontsize of the axes title
+# plt.rc("axes", labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+# plt.rc("xtick", labelsize=SMALL_SIZE)  # fontsize of the tick labels
+# plt.rc("ytick", labelsize=SMALL_SIZE)  # fontsize of the tick labels
+# plt.rc("legend", fontsize=SMALL_SIZE)  # legend fontsize
+# plt.rc("figure", titlesize=BIGGER_SIZE)  # fontsize of the figure title
+# plt.subplots_adjust(top=1.0)
+# plt.subplots_adjust(wspace=0.0, hspace=0, right=0.7)
 
 
 class ModelNames:
@@ -33,6 +53,9 @@ class ModelNames:
     rfc = "rfc"
     knn = "knn"
     xgb = "xgb"
+
+
+model_names = [ModelNames.svc, ModelNames.rfc, ModelNames.knn, ModelNames.xgb]
 
 
 class Model:
@@ -53,14 +76,23 @@ def main():
     # train subparser
     parser_train = subparsers.add_parser("train", help="train help")
     parser_train.add_argument("-n", "--number-of-rows", type=int)
+    parser_train.add_argument("--with-tuning", action="store_true")
+    parser_train.add_argument(
+        "model_name",
+        choices=model_names,
+    )
 
     # evaluate subparser
     parser_evaluate = subparsers.add_parser("evaluate", help="evaluate help")
     parser_evaluate.add_argument("--with-plots", action="store_true")
-
-    parser.add_argument(
+    parser_evaluate.add_argument(
         "model_name",
-        choices=[ModelNames.svc, ModelNames.rfc, ModelNames.knn, ModelNames.xgb],
+        choices=model_names,
+    )
+
+    # evaluate all subparser
+    parser_evaluate_all = subparsers.add_parser(
+        "evaluate_all", help="evaluate all help"
     )
 
     args = parser.parse_args()
@@ -69,6 +101,8 @@ def main():
         train(args)
     elif args.command == "evaluate":
         evaluate(args)
+    elif args.command == "evaluate_all":
+        evaluate_all(args)
 
 
 def train(args):
@@ -88,12 +122,13 @@ def train(args):
 
     model_name = args.model_name
     if model_name == ModelNames.svc:
-        model = SVC(random_state=42, C=100, gamma=0.001, kernel="rbf")
-        # model = SVC(random_state=42)
-        # distributions = {
-        #     "svc__C": uniform(0.1, 100),
-        #     "svc__kernel": ["linear", "rbf", "poly"],
-        # }
+        model = SVC(random_state=42)
+        distributions = {
+            "svc__C": uniform(0.1, 100),
+            "svc__gamma": uniform(0.001, 1),
+            "svc__kernel": ["rbf", "poly"],
+            "svc__degree": randint(2, 5),
+        }
     elif model_name == ModelNames.rfc:
         model = RandomForestClassifier()
     elif model_name == ModelNames.knn:
@@ -103,18 +138,32 @@ def train(args):
 
     pipeline = make_pipeline(preprocessing_pipeline, model)
 
-    # clf = RandomizedSearchCV(pipeline, distributions, random_state=42, verbose=2)
-
     st = time.time()
-    # clf.fit(X_train, y_train)
-    pipeline.fit(X_train, y_train)
+
+    if args.with_tuning:
+        clf = RandomizedSearchCV(
+            pipeline,
+            distributions,
+            random_state=42,
+            verbose=2,
+            cv=3,
+            n_iter=5,
+            n_jobs=2,
+            scoring="f1",
+        )
+
+        clf.fit(X_train, y_train)
+
+        save_model(clf.best_estimator_, f"{model_name}_pipeline.joblib")
+    else:
+        pipeline.fit(X_train, y_train)
+
+        save_model(pipeline, f"{model_name}_pipeline.joblib")
+
     et = time.time()
 
     elapsed_time = et - st
     print(f"Execution time: {elapsed_time} seconds")
-
-    # save_model(clf.best_estimator_, f"{model_name}_pipeline.joblib")
-    save_model(pipeline, f"{model_name}_pipeline.joblib")
 
     print(f"{model_name} model was successfully trained")
 
@@ -123,7 +172,11 @@ def evaluate(args):
     X_test = pd.read_csv(f"{data_path}/X_test.csv")
     y_test = pd.read_csv(f"{data_path}/y_test.csv")
 
-    model = Model(model_name=args.model_name)
+    model_name = args.model_name
+
+    model = Model(model_name=model_name)
+
+    print(f"Model params: {model.pipeline.get_params()[model_name]}")
 
     st = time.time()
     predictions = model.predict(X_test)
@@ -135,6 +188,7 @@ def evaluate(args):
     print(f"F1 score: {f1_score(y_test, predictions)}")
     print(f"MCC score: {matthews_corrcoef(y_test, predictions)}")
     print(f"Cohen's kappa score: {cohen_kappa_score(y_test, predictions)}")
+    print(f"AUC score: {roc_auc_score(y_test, predictions)}")
 
     print(f"Number of rows used to evaluate model: {len(X_test)}")
 
@@ -145,7 +199,55 @@ def evaluate(args):
 
     if args.with_plots:
         ConfusionMatrixDisplay.from_predictions(y_test, predictions)
+        plt.savefig("app/models/figures/confusion_matrix.png", bbox_inches="tight")
+        # plt.subplots_adjust(top=1.0)
+        RocCurveDisplay.from_predictions(y_test, predictions)
+        plt.savefig("app/models/figures/roc_curve.png", bbox_inches="tight")
+        # plt.subplots_adjust(top=0.98, bottom=0.125)
         plt.show()
+
+
+def evaluate_all(args):
+    X_train = pd.read_csv(f"{data_path}/X_train.csv")
+    y_train = pd.read_csv(f"{data_path}/y_train.csv")
+    X_test = pd.read_csv(f"{data_path}/X_test.csv")
+    y_test = pd.read_csv(f"{data_path}/y_test.csv")
+
+    metric_names = [
+        "Accuracy",
+        "Precision",
+        "Recall",
+        "F1 score",
+        "MCC",
+        "Cohen’s kappa",
+        "AUC",
+    ]
+
+    for [data_type, X, y_true] in [
+        ["train", X_train, y_train],
+        ["test", X_test, y_test],
+    ]:
+        res = []
+
+        for model_name in tqdm(model_names):
+            model = Model(model_name=model_name)
+
+            predictions = model.predict(X)
+
+            res.append(
+                [
+                    accuracy_score(y_true, predictions),
+                    precision_score(y_true, predictions),
+                    recall_score(y_true, predictions),
+                    f1_score(y_true, predictions),
+                    matthews_corrcoef(y_true, predictions),
+                    cohen_kappa_score(y_true, predictions),
+                    roc_auc_score(y_true, predictions),
+                ]
+            )
+
+        df_res = pd.DataFrame(res, index=model_names, columns=metric_names)
+        df_res.to_excel(f"app/models/tables/numeric_model/{data_type}.xlsx")
 
 
 def get_preprocessing_pipeline():
