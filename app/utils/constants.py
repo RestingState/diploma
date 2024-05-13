@@ -1,5 +1,15 @@
 data_path = "app/data"
 
+metric_names = [
+    "Accuracy",
+    "Precision",
+    "Recall",
+    "F1 score",
+    "MCC",
+    "Cohen’s kappa",
+    "AUC",
+]
+
 
 class ModelColumns:
     title = "title"

@@ -20,6 +20,7 @@ from sklearn.metrics import (
     f1_score,
     matthews_corrcoef,
     cohen_kappa_score,
+    roc_auc_score,
 )
 
 from app.utils.constants import data_path
@@ -71,8 +72,7 @@ def main():
     parser_evaluate = subparsers.add_parser("evaluate", help="evaluate help")
     parser_evaluate.add_argument("-n", "--number-of-rows", type=int)
     parser_evaluate.add_argument("--with-plots", action="store_true")
-
-    parser.add_argument(
+    parser_evaluate.add_argument(
         "model_name",
         choices=[ModelNames.distilbert, ModelNames.albert],
     )
@@ -105,6 +105,7 @@ def evaluate(args):
     print(f"F1 score: {f1_score(y_test, predictions)}")
     print(f"MCC score: {matthews_corrcoef(y_test, predictions)}")
     print(f"Cohen's kappa score: {cohen_kappa_score(y_test, predictions)}")
+    print(f"AUC score: {roc_auc_score(y_test, predictions)}")
 
     elapsed_time = et - st
     print(f"Execution time: {elapsed_time} seconds")

@@ -26,7 +26,7 @@ from sklearn.impute import SimpleImputer
 from joblib import dump, load
 import time
 from xgboost import XGBClassifier
-from app.utils.constants import data_path, ModelColumns
+from app.utils.constants import data_path, ModelColumns, metric_names
 from scipy.stats import uniform, randint
 from tqdm import tqdm
 
@@ -59,7 +59,7 @@ model_names = [ModelNames.svc, ModelNames.rfc, ModelNames.knn, ModelNames.xgbcla
 
 
 class Model:
-    def __init__(self, model_name=ModelNames.svc):
+    def __init__(self, model_name=ModelNames.xgbclassifier):
         self.pipeline = load_model(f"{model_name}_pipeline.joblib")
 
     def predict(self, jobs):
@@ -218,16 +218,6 @@ def evaluate_all(args):
     y_train = pd.read_csv(f"{data_path}/y_train.csv")
     X_test = pd.read_csv(f"{data_path}/X_test.csv")
     y_test = pd.read_csv(f"{data_path}/y_test.csv")
-
-    metric_names = [
-        "Accuracy",
-        "Precision",
-        "Recall",
-        "F1 score",
-        "MCC",
-        "Cohen’s kappa",
-        "AUC",
-    ]
 
     for [data_type, X, y_true] in [
         ["train", X_train, y_train],
